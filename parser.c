@@ -17,6 +17,7 @@ int nextC(FILE* json){
   }
   if (c == EOF){
     fprintf(stderr, "Error: Unexpected end of file on lin number %d. \n", line);
+    fclose(json);
     exit(1);
   }
   return c;
@@ -27,6 +28,7 @@ void expectC(FILE* json, int d){
   int c = nextC(json);
   if (c == d) return;
   fprintf(stderr, "Error: Expected '%c' on line %d.\n", d, line);
+  fclose(json);
   exit(1);
 }
 
@@ -46,6 +48,7 @@ char* nextString(FILE* json){
   int c = nextC(json);
   if (c != '"'){
     fprintf(stderr, "Error: Expected string on line %d.\n", line);
+    fclose(json);
     exit(1);
   }
   c = nextC(json);
@@ -53,14 +56,17 @@ char* nextString(FILE* json){
   while (c != '"') {
     if (i >= 128){
       fprintf(stderr, "Error: Strings longer than 128 characters in length are not supported.\n");
+      fclose(json);
       exit(1);
     }
     if (c == '\\'){
       fprintf(stderr, "Error: Strings with escape codes are not supported.\n");
+      fclose(json);
       exit(1);
     }
     if (c < 32 || c > 126){
       fprintf(stderr, "Error: Strings may contain only ascii characters.\n");
+      fclose(json);
       exit(1);
     }
     buffer[i] = c;
@@ -73,8 +79,11 @@ char* nextString(FILE* json){
 
 double nextNumber(FILE* json){
   double value;
-  fscanf(json, "%f", &value);
-  // Error check this ...
+  // the number of items successfully stored
+  int f = fscanf(json, "%f", &value);
+  if (f != 1){
+    fprintf(stderr, "Error: floating point is expected in line number %d.\n", line);
+  }
   return value;
 }
 double nextVector(FILE* json){
@@ -123,7 +132,8 @@ void readScene(char* filename) {
     char* key = nextString(json);
     if (strcmp(key, "type") != 0) {
 	     fprintf(stderr, "Error: Expected \"type\" key on line number %d.\n", line);
-	      exit(1);
+       fclose(json);
+       exit(1);
     }
     skip_ws(json);
 
@@ -138,7 +148,8 @@ void readScene(char* filename) {
     } else if (strcmp(value, "plane") == 0) {
     } else {
 	     fprintf(stderr, "Error: Unknown type, \"%s\", on line number %d.\n", value, line);
-	      exit(1);
+       fclose(json);
+       exit(1);
     }
 
     skip_ws(json);
@@ -167,12 +178,14 @@ void readScene(char* filename) {
         }
         else {
           fprintf(stderr, "Error: Unkonwn property, %s, on line %d.\n", key, line);
+          fclose(json);
           exit(1);
         }
         skipWS(json);
       }
       else{
         fprintf(stderr, "Error: Unexpected value on line %d\n", line);
+        fclose(json);
         exit(1);
       }
     }
@@ -188,6 +201,7 @@ void readScene(char* filename) {
     }
     else{
       fprintf(stderr, "Error: Expecting ',' or ']' on line %d.\n", line);
+      fclose(json);
       exit(1);
     }
   }
