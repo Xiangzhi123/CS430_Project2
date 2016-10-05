@@ -2,37 +2,82 @@
 #include <stdlib.h>
 #include <math.h>
 #include "parser.c"
-#include "ppmrw.c"
 
-typedef struct {
-  int kind; // 0 = camera, 1 = sphere, 2 = plane
-  double color[3];
-  union {
-    struct {
-      double width;
-      double height;
-    } camera;
-    struct {
-      double position[3];
-      double radius;
-    } sphere;
-    struct {
-      double position[3];
-      double normal[3];
-    } plane;
-  };
-} Object;
+
+// create a stuct that represents a single pixel, same as what we did in class
+typedef struct PPMRGBpixel {
+	unsigned char r;
+	unsigned char g;
+	unsigned char b;
+} PPMRGBpixel;
+
+// create struct that represents a single image
+typedef struct PPMimage {
+	int width;
+	int height;
+	int maxColorValue;
+	unsigned char *data;
+} PPMimage;
 
 static inline double sqr(double v) {
   return v*v;
 }
 
-static inline void nomarlize(double* v) {
+static inline void normalize(double* v) {
   double len = sqrt(sqr(v[0]) + sqr(v[1]) + sqr(v[2]));
   v[0] /= len;
   v[1] /= len;
   v[2] /= len;
 }
+
+
+// this function writes the body data from buffer->data to output file
+int PPMDataWrite(char ppmVersionNum, FILE *outputFile, PPMimage* buffer) {
+	// write image data to the file if the ppm version is P6
+	if (ppmVersionNum == '6') {
+		// using fwrite to write data, basically it just like copy and paste data for P6
+		fwrite(buffer->data, sizeof(PPMRGBpixel), buffer->width*buffer->height, outputFile);
+		printf("The file saved successfully! \n");
+		return (0);
+	}
+	// write image data to the file if the ppm version is p3 
+	else if (ppmVersionNum == '3') {
+		int i, j;
+		for (i = 0; i < buffer->height; i++) {
+			for (j = 0; j < buffer->width; j++) {
+				// similar thing as we did in reading body data for P3, but we use fprintf here to write data.
+				fprintf(outputFile, "%d %d %d ", buffer->data[i*buffer->width*3+j*3], buffer->data[i*buffer->width+j*3+1], buffer->data[i*buffer->width*3+2]);
+			}
+			fprintf(outputFile, "\n");
+		}
+
+		printf("The file saved successfully! \n");
+		return (0);
+	}
+	else {
+		fprintf(stderr, "Error: incorrect ppm version. \n");
+		return (1);
+	}
+}
+
+// this function writes the header data from buffer to output file
+int PPMWrite(char *outPPMVersion, char *outputFilename, PPMimage* buffer) {
+	int width = buffer->width;
+	int height = buffer->height;
+	int maxColorValue = buffer->maxColorValue;
+	char ppmVersionNum = outPPMVersion[1];
+	FILE *fh = fopen(outputFilename, "wb");
+	if (fh == NULL) {
+		fprintf(stderr, "Error: open the file unscuccessfully. \n");
+		return (1);
+	}
+	char *comment = "# output.ppm";
+	fprintf(fh, "P%c\n%s\n%d %d\n%d\n", ppmVersionNum, comment, width, height, 255);
+	// call the PPMDataWrite function which writes the body data
+	PPMDataWrite(ppmVersionNum, fh, buffer);
+	fclose(fh);
+}
+
 
 double sphereIntersection(double* Ro, double* Rd, double* Center, double r) {
   // x = Rox + Rdx*t
@@ -58,7 +103,7 @@ double sphereIntersection(double* Ro, double* Rd, double* Center, double r) {
              sqr(Center[1]) + sqr(Center[2]) - 2*(Ro[0]*Center[0] + Rd[0]*Center[0]
              + Ro[1]*Center[1] + Rd[1]*Center[1] + Ro[2]*Center[2] + Rd[2]*Center[2])
              - sqr(r);
-  double det = sqr(b)) - 4*a*c;
+  double det = sqr(b) - 4*a*c;
   if (det < 0) return -1;
   det = sqrt(det);
 
@@ -70,7 +115,7 @@ double sphereIntersection(double* Ro, double* Rd, double* Center, double r) {
   return -1;
 }
 
-double planeIntersection(double* Ro, double* Rd, double* position double normal) {
+double planeIntersection(double* Ro, double* Rd, double* position, double* normal) {
   // A(X0 + Xd * t) + B(Y0 + Yd * t) + (Z0 + Zd * t) + D = 0
   // A(Rox + Rdx*t) + B(Roy + Rdy*t) + C(Roz + Rdz*t) + D = 0
   // it could also be written as:
@@ -85,10 +130,99 @@ double planeIntersection(double* Ro, double* Rd, double* position double normal)
   return -1;
 }
 
+PPMimage* rayCasting(char* filename, double w, double h, Object** objects){
+  PPMimage* buffer = (PPMimage*)malloc(sizeof(PPMimage));
+  if (objects[0] == NULL) {
+    fprintf(stderr, "Error: no object found");
+    exit(1);
+  }
+  int cameraFound = 0;
+  double width;
+  double height;
+  int i;
+  for (i=0; objects[i] != 0; i++){
+  	printf("%d", objects[i]->kind);
+    if (objects[i]->kind == 0){
+      cameraFound = 1;
+      width = objects[i]->camera.width;
+      height = objects[i]->camera.height;
+      if (width <=0 || height <= 0){
+        fprintf(stderr, "Error: invalid size for camera");
+        exit(1);
+      }
+    }
+  }
+  if (cameraFound == 0){
+    fprintf(stderr, "Error: Camera is not found");
+    exit(1);
+  }
 
-// this function write the image into ppm file
-void writeFile(char* filename){
-  Object** objects = malloc(sizeof(Object*)*2);
+  buffer->data = (unsigned char*)malloc(w*h*sizeof(PPMRGBpixel));
+  if (buffer->data == NULL || buffer == NULL){
+    fprintf(stderr, "Error: allocate the memory un successfully. \n");
+    exit(1);
+  }
+
+  double pixwidth = width / w;
+  double pixheight = height / h;
+
+  double pointx, pointy, pointz;
+  int j,k;
+  printf("%d", 1);
+  for (k=0; k<h; k++){
+    double pointy = - height / 2 + pixheight * (k + 0.5);
+    for (j=0; j<h; j++){
+      double pointx = - width / 2 + pixwidth * (j + 0.5);
+      double Rd[3] = {pointx, pointy, 1};
+
+      normalize(Rd);
+      int objectNum;
+      if (intersect(Rd, objectNum, objects)){
+        if (objects[objectNum]->color != NULL) {
+          buffer->data[k*(int)width*3+j*3] = (unsigned char)(objects[objectNum]->color[0] * 255);
+          buffer->data[k*(int)width*3+j*3+1] = (unsigned char)(objects[objectNum]->color[1] * 255);
+          buffer->data[k*(int)width*3+j*3+2] = (unsigned char)(objects[objectNum]->color[2] * 255);
+        }
+      }
+    }
+  }
+  return buffer;
+}
+
+int intersect(double* Rd, int objectNum, Object** objects){
+  double bestT = INFINITY;
+  int i;
+  double t;
+  double Ro[3] = {0, 0, 0};
+  for (i=0; objects[i] != 0; i++){
+    if (objects[i]->kind == 1){
+      t = sphereIntersection(Ro, Rd, objects[i]->sphere.position, objects[i]->sphere.radius);
+      if (t){
+        if (t > 0 && t < bestT) bestT = t;
+      }
+      else {
+        fprintf(stderr, "Error: finding the distance unsuccessfully.\n");
+        return (1);
+      }
+      objectNum = i;
+    }
+    else if (objects[i]->kind == 2){
+      t = planeIntersection(Ro, Rd, objects[i]->plane.position, objects[i]->plane.normal);
+      if (t) {
+        if (t > 0 && t < bestT) bestT = t;
+      }
+      else {
+        fprintf(stderr, "Error: finding the distance unsuccessfully.\n");
+        return (1);
+      }
+      objectNum = i;
+    }
+  }
+  if (objectNum < 0){
+    fprintf(stderr, "Error: the object number could not be less than o.\n");
+    return (1);
+  }
+  return 0;
 }
 
 int main(int argc, char **argv){
@@ -96,11 +230,27 @@ int main(int argc, char **argv){
     fprintf(stderr, "Error: incorrect format('raycast width height input.json output.ppm')");
     return (1);
   }
-  char *width = argv[1];
-  char *height = argv[2];
+  char *w = argv[1];
+  char *h = argv[2];
   char *inputFilename = argv[3];
   char *outputFilename = argv[4];
-  readScene(inputFilename);
-
-  writeFile(outputFilename);
+ 
+  Object** objects = malloc(sizeof(Object*)*128);
+  double width = atof(w);
+  double height = atof(h);
+  if (width <= 0){
+    fprintf(stderr, "Error: Invalid width input!");
+    return (1);
+  }
+  if (height <= 0){
+    fprintf(stderr, "Error: Invalid height input!");
+    return (1);
+  }
+  readScene(inputFilename, objects);
+  PPMimage* buffer = rayCasting(inputFilename, width, height, objects);
+  printf("%d", 2);
+  buffer->width = width;
+  buffer->height = height;
+  PPMWrite("P3", outputFilename, buffer);
+  return (0);
 }

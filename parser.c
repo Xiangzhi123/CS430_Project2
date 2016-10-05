@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include "object.h"
 // the line is used to track the line number for error
 int line = 1;
 
@@ -86,7 +86,7 @@ double nextNumber(FILE* json){
   }
   return value;
 }
-double nextVector(FILE* json){
+double* nextVector(FILE* json){
   double* v = malloc(3*sizeof(double));
   expectC(json, '[');
   skipWS(json);
@@ -104,7 +104,7 @@ double nextVector(FILE* json){
   return v;
 }
 
-void readScene(char* filename) {
+void readScene(char* filename, Object** objects) {
   int c;
   FILE* json = fopen(filename, "r");
   if (json == NULL){
@@ -118,15 +118,16 @@ void readScene(char* filename) {
   skipWS(json);
 
   // Find the objects
+  int i = 0;
   while (1){
     c = fgetc(json);
     if (c == ']'){
       fprintf(stderr, "Error: This is the worst scene file EVER.\n");
       fclose(json);
-      return;
+      exit(1);
     }
-    iif (c == '{') {
-      skip_ws(json);
+    if (c == '{') {
+      skipWS(json);
 
     // Parse the object
     char* key = nextString(json);
@@ -135,14 +136,15 @@ void readScene(char* filename) {
        fclose(json);
        exit(1);
     }
-    skip_ws(json);
+    skipWS(json);
 
-    expect_c(json, ':');
+    expectC(json, ':');
 
-    skip_ws(json);
+    skipWS(json);
 
     char* value = nextString(json);
-
+	
+	char* tempKey = value;
     if (strcmp(value, "camera") == 0) {
     } else if (strcmp(value, "sphere") == 0) {
     } else if (strcmp(value, "plane") == 0) {
@@ -152,11 +154,11 @@ void readScene(char* filename) {
        exit(1);
     }
 
-    skip_ws(json);
-
+    skipWS(json);
+	
     while (1) {
 	     // , }
-	    c = next_c(json);
+	    c = nextC(json);
 	    if (c == '}') {
         // stop parsing this object
         break;
@@ -171,10 +173,45 @@ void readScene(char* filename) {
         if ((strcmp(key, "width") == 0) || (strcmp(key, "height") == 0) ||
         (strcmp(key, "radius") == 0)){
           double value = nextNumber(json);
+          if (strcmp(key, "width") == 0){
+          	objects[i]->camera.width = value;
+		  }
+		  else if (strcmp(key, "height") == 0){
+		  	objects[i]->camera.height = value;
+		  }
+		  else {
+		  	objects[i]->sphere.radius = value;
+		  }
         }
         else if ((strcmp(key, "color") == 0) || (strcmp(key, "position") == 0) ||
         strcmp(key, "normal") == 0){
           double* value = nextVector(json);
+          if (strcmp(key, "color") == 0){
+          	objects[i]->color[0] = value[0];
+          	objects[i]->color[1] = value[1];
+          	objects[i]->color[2] = value[2];
+		  }
+		  else if (strcmp(key, "position") == 0){
+		  	if (strcmp(tempKey, "sphere") == 0){
+		  		objects[i]->sphere.position[0] = value[0];
+		  		objects[i]->sphere.position[1] = value[1];
+		  		objects[i]->sphere.position[2] = value[2];
+			  }
+			else if (strcmp(tempKey, "plane") == 0){
+				objects[i]->plane.position[0] = value[0];
+				objects[i]->plane.position[1] = value[1];
+				objects[i]->plane.position[2] = value[2];
+			}
+			else{
+				fprintf(stderr, "Error: Unknown type!.\n");
+				exit(1);
+			}
+		  }
+		  else{
+		  	objects[i]->plane.normal[0] = value[0];
+		  	objects[i]->plane.normal[1] = value[1];
+		  	objects[i]->plane.normal[2] = value[2];
+		  }
         }
         else {
           fprintf(stderr, "Error: Unkonwn property, %s, on line %d.\n", key, line);
@@ -197,7 +234,7 @@ void readScene(char* filename) {
     }
     else if (c == ']'){
       fclose(json);
-      return;
+      exit(0);
     }
     else{
       fprintf(stderr, "Error: Expecting ',' or ']' on line %d.\n", line);
@@ -205,4 +242,6 @@ void readScene(char* filename) {
       exit(1);
     }
   }
+  i = i + 1;
+}
 }
