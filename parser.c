@@ -120,6 +120,8 @@ void readScene(char* filename, Object** objects) {
   // Find the objects
   int i = 0;
   while (1){
+    Object* object = malloc(sizeof(Object));
+    objects[i] = object;
     c = fgetc(json);
     if (c == ']'){
       fprintf(stderr, "Error: This is the worst scene file EVER.\n");
