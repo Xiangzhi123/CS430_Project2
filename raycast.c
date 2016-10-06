@@ -213,20 +213,20 @@ PPMimage* rayCasting(char* filename, int w, int h, Object** objects) {
 			double Rd[3] = { vx, vy, 1 };
 
 			normalize(Rd);
-				int intersection = intersect(Rd, i, objects);
-				if (intersection>=0) {
-					pixel->r = (int)((objects[intersection]->color[0]) * 255);
-					pixel->g = (int)((objects[intersection]->color[1]) * 255);
-					pixel->b = (int)((objects[intersection]->color[2]) * 255);
-				}
-				else {
-					pixel->r = 0;
-					pixel->g = 0;
-					pixel->b = 0;
-				}
-				buffer->data[count++] = pixel->r;
-				buffer->data[count++] = pixel->g;
-				buffer->data[count++] = pixel->b;
+			int intersection = intersect(Rd, i, objects);
+			if (intersection>=0) {
+				pixel->r = (int)((objects[intersection]->color[0]) * 255);
+				pixel->g = (int)((objects[intersection]->color[1]) * 255);
+				pixel->b = (int)((objects[intersection]->color[2]) * 255);
+			}
+			else {
+				pixel->r = 0;
+				pixel->g = 0;
+				pixel->b = 0;
+			}
+			buffer->data[count++] = pixel->r;
+			buffer->data[count++] = pixel->g;
+			buffer->data[count++] = pixel->b;
 			}
 		}
 	return buffer;
