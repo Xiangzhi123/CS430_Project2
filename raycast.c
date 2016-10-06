@@ -40,7 +40,7 @@ int PPMDataWrite(char ppmVersionNum, FILE *outputFile, PPMimage* buffer) {
 		printf("The file saved successfully! \n");
 		return (0);
 	}
-	// write image data to the file if the ppm version is p3 
+	// write image data to the file if the ppm version is p3
 	else if (ppmVersionNum == '3') {
 		int i, j;
 		for (i = 0; i < buffer->height; i++) {
@@ -89,24 +89,23 @@ double sphereIntersection(double* Ro, double* Rd, double* Center, double r) {
   // + (Roz + Rdz*t - Centery)^2 = r^2
   //
   // Then, Rox^2 + Rdx^2*t^2 + Centerx^2 + 2*Rox*Rdx*t - 2*Rox*Centerx - 2*Rdx*t*Centerx
-  // + Roy^2 + Rdy^2*t^2 + Centery^2 + 2*Roy*Rdy*t - 2*Roy*Centery - 2*Rdy*Centery
-  // + Roz^2 + Rdz^2*t^2 + Centerz^2 + 2*Roz*Rdz*t - 2*Roz*Centerz - 2*Rdz*Centerz
+  // + Roy^2 + Rdy^2*t^2 + Centery^2 + 2*Roy*Rdy*t - 2*Roy*Centery - 2*Rdy*t*Centery
+  // + Roz^2 + Rdz^2*t^2 + Centerz^2 + 2*Roz*Rdz*t - 2*Roz*Centerz - 2*Rdz*t*Centerz
   //
   // Then, t^2(Rdx^2 + Rdy^2 + Rdz^2) +
-  // t*(2*Rox*Rdx + 2*TRoz*Rdz + 2*Roy*Rdy) +
+  // t*(2*Rox*Rdx + 2*TRoz*Rdz + 2*Roy*Rdy - 2*Rdx*Centerx - 2*Rdy*Centery - 2*Rdz*Centerz) +
   // Rox^2 + Centerx^2 + Roy^2 + Centery^2 + Roz^2 + Centerz^2 -
-  // 2*Rox*Centerx - 2*Rdx*Centerx - 2*Roy*Centery - 2*Rdy*Centery - 2*Roz*Centerz - 2*Rdz*Centerz
+  // 2*Rox*Centerx - 2*Roy*Centery - 2*Roz*Centerz
   // - r^2 = 0
   double a = sqr(Rd[0]) + sqr(Rd[1]) + sqr(Rd[2]);
-  double b = 2*(Ro[0]*Rd[0] + Ro[1]*Rd[1] + Ro[2]*Rd[2]);
+  double b = 2*(Ro[0]*Rd[0] + Ro[1]*Rd[1] + Ro[2]*Rd[2] - 2*Rd[0]*Center[0] - 2*Rd[1]*Center[1] - 2*Rd[2]*Center[2]);
   double c = sqr(Ro[0]) + sqr(Ro[1]) + sqr(Ro[2]) + sqr(Center[0]) +
-             sqr(Center[1]) + sqr(Center[2]) - 2*(Ro[0]*Center[0] + Rd[0]*Center[0]
-             + Ro[1]*Center[1] + Rd[1]*Center[1] + Ro[2]*Center[2] + Rd[2]*Center[2])
+             sqr(Center[1]) + sqr(Center[2]) - 2*(Ro[0]*Center[0]
+             + Ro[1]*Center[1] + Ro[2]*Center[2])
              - sqr(r);
   double det = sqr(b) - 4*a*c;
   if (det < 0) return -1;
   det = sqrt(det);
-
   double t0 = (-b - det) / (2*a);
   if (t0 > 0) return t0;
   double t1 = (-b + det) / (2*a);
@@ -130,127 +129,133 @@ double planeIntersection(double* Ro, double* Rd, double* position, double* norma
   return -1;
 }
 
-PPMimage* rayCasting(char* filename, double w, double h, Object** objects){
-  PPMimage* buffer = (PPMimage*)malloc(sizeof(PPMimage));
-  if (objects[0] == NULL) {
-    fprintf(stderr, "Error: no object found");
-    exit(1);
-  }
-  int cameraFound = 0;
-  double width;
-  double height;
-  int i;
-  for (i=0; objects[i] != 0; i++){
-  	printf("%d", objects[i]->kind);
-    if (objects[i]->kind == 0){
-      cameraFound = 1;
-      width = objects[i]->camera.width;
-      height = objects[i]->camera.height;
-      if (width <=0 || height <= 0){
-        fprintf(stderr, "Error: invalid size for camera");
-        exit(1);
-      }
-    }
-  }
-  if (cameraFound == 0){
-    fprintf(stderr, "Error: Camera is not found");
-    exit(1);
-  }
-
-  buffer->data = (unsigned char*)malloc(w*h*sizeof(PPMRGBpixel));
-  if (buffer->data == NULL || buffer == NULL){
-    fprintf(stderr, "Error: allocate the memory un successfully. \n");
-    exit(1);
-  }
-
-  double pixwidth = width / w;
-  double pixheight = height / h;
-
-  double pointx, pointy, pointz;
-  int j,k;
-  printf("%d", 1);
-  for (k=0; k<h; k++){
-    double pointy = - height / 2 + pixheight * (k + 0.5);
-    for (j=0; j<h; j++){
-      double pointx = - width / 2 + pixwidth * (j + 0.5);
-      double Rd[3] = {pointx, pointy, 1};
-
-      normalize(Rd);
-      int objectNum;
-      if (intersect(Rd, objectNum, objects)){
-        if (objects[objectNum]->color != NULL) {
-          buffer->data[k*(int)width*3+j*3] = (unsigned char)(objects[objectNum]->color[0] * 255);
-          buffer->data[k*(int)width*3+j*3+1] = (unsigned char)(objects[objectNum]->color[1] * 255);
-          buffer->data[k*(int)width*3+j*3+2] = (unsigned char)(objects[objectNum]->color[2] * 255);
-        }
-      }
-    }
-  }
-  return buffer;
+int intersect(double* Rd, int objectNum, Object** objects) {
+	int closest = -1;
+	double bestT = INFINITY;
+	int i;
+	double t;
+	double Ro[3] = { 0, 0, 0 };
+	for (i = 0; i<objectNum; i++){
+		if (objects[i]->kind == 1) {
+			t = sphereIntersection(Ro, Rd, objects[i]->sphere.position, objects[i]->sphere.radius);
+			if (t) {
+				if (t > 0 && t < bestT) {
+					bestT = t;
+					closest = i;
+				}
+			}
+			else {
+				fprintf(stderr, "Error: finding the distance unsuccessfully.\n");
+				return (1);
+			}
+		}
+		else if (objects[i]->kind == 2) {
+			t = planeIntersection(Ro, Rd, objects[i]->plane.position, objects[i]->plane.normal);
+			if (t) {
+				if (t > 0 && t < bestT) {
+					bestT = t;
+					closest = i;
+				}
+			}
+			else {
+				fprintf(stderr, "Error: finding the distance unsuccessfully.\n");
+				return (1);
+			}
+		}
+	}
+	return closest;
 }
 
-int intersect(double* Rd, int objectNum, Object** objects){
-  double bestT = INFINITY;
-  int i;
-  double t;
-  double Ro[3] = {0, 0, 0};
-  for (i=0; objects[i] != 0; i++){
-    if (objects[i]->kind == 1){
-      t = sphereIntersection(Ro, Rd, objects[i]->sphere.position, objects[i]->sphere.radius);
-      if (t){
-        if (t > 0 && t < bestT) bestT = t;
-      }
-      else {
-        fprintf(stderr, "Error: finding the distance unsuccessfully.\n");
-        return (1);
-      }
-      objectNum = i;
-    }
-    else if (objects[i]->kind == 2){
-      t = planeIntersection(Ro, Rd, objects[i]->plane.position, objects[i]->plane.normal);
-      if (t) {
-        if (t > 0 && t < bestT) bestT = t;
-      }
-      else {
-        fprintf(stderr, "Error: finding the distance unsuccessfully.\n");
-        return (1);
-      }
-      objectNum = i;
-    }
-  }
-  if (objectNum < 0){
-    fprintf(stderr, "Error: the object number could not be less than o.\n");
-    return (1);
-  }
-  return 0;
+PPMimage* rayCasting(char* filename, int w, int h, Object** objects) {
+	PPMimage* buffer = (PPMimage*)malloc(sizeof(PPMimage));
+	if (objects[0] == NULL) {
+		fprintf(stderr, "Error: no object found");
+		exit(1);
+	}
+	int cameraFound = 0;
+	double width;
+	double height;
+	int i;
+	for (i = 0; objects[i] != 0; i += 1) {
+		if (objects[i]->kind == 0) {
+			cameraFound = 1;
+			width = objects[i]->camera.width;
+			height = objects[i]->camera.height;
+			if (width <= 0 || height <= 0) {
+				fprintf(stderr, "Error: invalid size for camera");
+				exit(1);
+			}
+		}
+	}
+	if (cameraFound == 0) {
+		fprintf(stderr, "Error: Camera is not found");
+		exit(1);
+	}
+
+	buffer->data = (unsigned char*)malloc(w*h * sizeof(PPMRGBpixel));
+	if (buffer->data == NULL || buffer == NULL) {
+		fprintf(stderr, "Error: allocate the memory un successfully. \n");
+		exit(1);
+	}
+
+	double pixwidth = width / w;
+	double pixheight = height / h;
+
+	double pointx, pointy, pointz;
+	int j, k;
+	for (k = 0; k<h; k++) {
+		double pointy = -height / 2 + pixheight * (k + 0.5);
+		for (j = 0; j<h; j++) {
+			double pointx = -width / 2 + pixwidth * (j + 0.5);
+			double Rd[3] = { pointx, pointy, 1 };
+
+			normalize(Rd);
+				int intersection = intersect(Rd, i, objects);
+				if (intersection >= 0) {
+					printf("%d\n", intersection);
+					buffer->data[(h-1-k)*w*3 + j*3] = (int)((objects[intersection]->color[0]) * 255);
+					buffer->data[(h-1-k)*w*3 + j*3+ 1] = (int)((objects[intersection]->color[1]) * 255);
+					buffer->data[(h-1-k)*w*3 + j*3 + 2] = (int)((objects[intersection]->color[2]) * 255);
+
+				}
+				else {
+					printf("%d", 1);
+					buffer->data[(h-1-k)*w*3 + j*3] = 0;
+					buffer->data[(h-1-k)*w*3 + j*3+ 1] = 0;
+					buffer->data[(h-1-k)*w*3 + j*3 + 2] = 0;
+
+				}
+			}
+		}
+	return buffer;
 }
 
-int main(int argc, char **argv){
-  if (argc != 5){
-    fprintf(stderr, "Error: incorrect format('raycast width height input.json output.ppm')");
-    return (1);
-  }
-  char *w = argv[1];
-  char *h = argv[2];
-  char *inputFilename = argv[3];
-  char *outputFilename = argv[4];
- 
-  Object** objects = malloc(sizeof(Object*)*128);
-  double width = atof(w);
-  double height = atof(h);
-  if (width <= 0){
-    fprintf(stderr, "Error: Invalid width input!");
-    return (1);
-  }
-  if (height <= 0){
-    fprintf(stderr, "Error: Invalid height input!");
-    return (1);
-  }
-  readScene(inputFilename, objects);
-  PPMimage* buffer = rayCasting(inputFilename, width, height, objects);
-  printf("%d", 2);
-  buffer->width = width;
-  buffer->height = height;
-  PPMWrite("P3", outputFilename, buffer);
-  return (0);
+
+int main(int argc, char **argv) {
+	if (argc != 5) {
+		fprintf(stderr, "Error: incorrect format('raycast width height input.json output.ppm')");
+		return (1);
+	}
+	char *w = argv[1];
+	char *h = argv[2];
+	char *inputFilename = argv[3];
+	char *outputFilename = argv[4];
+
+	Object** objects = malloc(sizeof(Object*) * 128);
+	int width = atoi(w);
+	int height = atoi(h);
+	if (width <= 0) {
+		fprintf(stderr, "Error: Invalid width input!");
+		return (1);
+	}
+	if (height <= 0) {
+		fprintf(stderr, "Error: Invalid height input!");
+		return (1);
+	}
+	readScene(inputFilename, objects);
+	PPMimage* buffer = rayCasting(inputFilename, width, height, objects);
+	buffer->width = width;
+	buffer->height = height;
+	PPMWrite("P3", outputFilename, buffer);
+	return (0);
 }
