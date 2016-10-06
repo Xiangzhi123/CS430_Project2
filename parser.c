@@ -79,6 +79,9 @@ char* nextString(FILE* json) {
 	return strdup(buffer);
 }
 
+// get the next number if it is a number and saved as double.
+// when I was doing this part, using '%f' could not save the value for fscanf
+// It worked when I change the '%f' to '%lf'
 double nextNumber(FILE* json) {
 	double value;
 	// the number of items successfully stored
@@ -88,6 +91,8 @@ double nextNumber(FILE* json) {
 	}
 	return value;
 }
+
+// get the next vector, 3 numbers should be included in this vector.
 double* nextVector(FILE* json) {
 	double* v = malloc(3 * sizeof(double));
 	expectC(json, '[');
@@ -106,6 +111,7 @@ double* nextVector(FILE* json) {
 	return v;
 }
 
+// I modified a little bit in this readScene() function
 void readScene(char* filename, Object** objects) {
 	int c;
 	FILE* json = fopen(filename, "r");
@@ -147,8 +153,10 @@ void readScene(char* filename, Object** objects) {
 			skipWS(json);
 
 			char* value = nextString(json);
-
+			
+			// this tempKey is used to check if it is a sphere position or plane position, and sphere color or plane color
 			char* tempKey = value;
+			// save the kind value for the object
 			if (strcmp(value, "camera") == 0) {
 				objects[i]->kind = 0;
 			}
@@ -180,9 +188,14 @@ void readScene(char* filename, Object** objects) {
 					skipWS(json);
 					expectC(json, ':');
 					skipWS(json);
+					// saving the values into objects
+					// if the key is width, radius, or height, using nextNumber() would be 
+					// a good choice to get those values
 					if ((strcmp(key, "width") == 0) || (strcmp(key, "height") == 0) ||
 						(strcmp(key, "radius") == 0)) {
 						double value = nextNumber(json);
+						// Also, object[i]->someObject.property = value would be the solution for
+						// saving value into the object.
 						if (strcmp(key, "width") == 0) {
 							objects[i]->camera.width = value;
 						}
@@ -193,6 +206,8 @@ void readScene(char* filename, Object** objects) {
 							objects[i]->sphere.radius = value;
 						}
 					}
+					// if the key is color, position or normal, then it would be a 3d vector in the json file
+					// so we would like to read that as a 3d vector, and saving the values into objects.
 					else if ((strcmp(key, "color") == 0) || (strcmp(key, "position") == 0) ||
 						strcmp(key, "normal") == 0) {
 						double* value = nextVector(json);
@@ -202,6 +217,7 @@ void readScene(char* filename, Object** objects) {
 							objects[i]->color[1] = value[1];
 							objects[i]->color[2] = value[2];
 						}
+						// if the key is position, then sphere and plane would be considered respectively
 						else if (strcmp(key, "position") == 0) {
 							if (strcmp(tempKey, "sphere") == 0) {
 								objects[i]->sphere.position[0] = value[0];
@@ -245,6 +261,8 @@ void readScene(char* filename, Object** objects) {
 			}
 			else if (c == ']') {
 				fclose(json);
+				// the file does not have object anymore, so that I set the next object to NULL
+				// for easy use in  the future.
 				objects[i + 1] = NULL;
 				return;
 			}
@@ -254,6 +272,7 @@ void readScene(char* filename, Object** objects) {
 				exit(1);
 			}
 		}
+		// increment the index of the object, so that we can move on to the next object
 		i = i + 1;
 	}
 }
