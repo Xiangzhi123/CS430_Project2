@@ -248,7 +248,6 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "Error: incorrect format, it has to be 'raycast'");
 		return (1);
 	}
-	if
 	Object** objects = malloc(sizeof(Object*) * 128);
 	int width = atoi(w);
 	int height = atoi(h);
