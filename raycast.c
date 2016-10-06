@@ -238,16 +238,11 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "Error: incorrect format('raycast width height input.json output.ppm')");
 		return (1);
 	}
-	char *name = argv[0];
 	char *w = argv[1];
 	char *h = argv[2];
 	char *inputFilename = argv[3];
 	char *outputFilename = argv[4];
 
-	if (strcmp(name, "raycast") != 0) {
-		fprintf(stderr, "Error: incorrect format, it has to be 'raycast'");
-		return (1);
-	}
 	Object** objects = malloc(sizeof(Object*) * 128);
 	int width = atoi(w);
 	int height = atoi(h);
