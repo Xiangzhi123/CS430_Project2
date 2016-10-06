@@ -98,7 +98,7 @@ double sphereIntersection(double* Ro, double* Rd, double* Center, double r) {
   // 2*Rox*Centerx - 2*Roy*Centery - 2*Roz*Centerz
   // - r^2 = 0
   double a = sqr(Rd[0]) + sqr(Rd[1]) + sqr(Rd[2]);
-  double b = 2*(Ro[0]*Rd[0] + Ro[1]*Rd[1] + Ro[2]*Rd[2] - 2*Rd[0]*Center[0] - 2*Rd[1]*Center[1] - 2*Rd[2]*Center[2]);
+  double b = 2*(Ro[0]*Rd[0] + Ro[1]*Rd[1] + Ro[2]*Rd[2] - Rd[0]*Center[0] - Rd[1]*Center[1] - Rd[2]*Center[2]);
   double c = sqr(Ro[0]) + sqr(Ro[1]) + sqr(Ro[2]) + sqr(Center[0]) +
              sqr(Center[1]) + sqr(Center[2]) - 2*(Ro[0]*Center[0]
              + Ro[1]*Center[1] + Ro[2]*Center[2])
@@ -125,8 +125,8 @@ double planeIntersection(double* Ro, double* Rd, double* position, double* norma
                 - normal[1]*position[1] - normal[2]*position[2]) / (normal[0]*Rd[0]
                 + normal[1]*Rd[1] + normal[2]*Rd[2]);
 
-  if (t > 0) return t;
-  return -1;
+  if (t>0) return t;
+	return -1;
 }
 
 int intersect(double* Rd, int objectNum, Object** objects) {
@@ -193,6 +193,7 @@ PPMimage* rayCasting(char* filename, int w, int h, Object** objects) {
 	}
 
 	buffer->data = (unsigned char*)malloc(w*h * sizeof(PPMRGBpixel));
+	PPMRGBpixel *pixel = (PPMRGBpixel*)malloc(sizeof(PPMRGBpixel));
 	if (buffer->data == NULL || buffer == NULL) {
 		fprintf(stderr, "Error: allocate the memory un successfully. \n");
 		exit(1);
@@ -204,6 +205,7 @@ PPMimage* rayCasting(char* filename, int w, int h, Object** objects) {
 	double pointx, pointy, pointz;
 	int j, k;
 	for (k = 0; k<h; k++) {
+		int count = (h-k-1)*w*3;
 		double pointy = -height / 2 + pixheight * (k + 0.5);
 		for (j = 0; j<h; j++) {
 			double pointx = -width / 2 + pixwidth * (j + 0.5);
@@ -211,20 +213,20 @@ PPMimage* rayCasting(char* filename, int w, int h, Object** objects) {
 
 			normalize(Rd);
 				int intersection = intersect(Rd, i, objects);
-				if (intersection >= 0) {
-					printf("%d\n", intersection);
-					buffer->data[(h-1-k)*w*3 + j*3] = (int)((objects[intersection]->color[0]) * 255);
-					buffer->data[(h-1-k)*w*3 + j*3+ 1] = (int)((objects[intersection]->color[1]) * 255);
-					buffer->data[(h-1-k)*w*3 + j*3 + 2] = (int)((objects[intersection]->color[2]) * 255);
-
+				if (intersection>=0) {
+					pixel->r = (int)((objects[intersection]->color[0]) * 255);
+					pixel->g = (int)((objects[intersection]->color[1]) * 255);
+					pixel->b = (int)((objects[intersection]->color[2]) * 255);
 				}
 				else {
-					printf("%d", 1);
-					buffer->data[(h-1-k)*w*3 + j*3] = 0;
-					buffer->data[(h-1-k)*w*3 + j*3+ 1] = 0;
-					buffer->data[(h-1-k)*w*3 + j*3 + 2] = 0;
+					pixel->r = 0;
+					pixel->g = 0;
+					pixel->b = 0;
 
 				}
+				buffer->data[count++] = pixel->r;
+				buffer->data[count++] = pixel->g;
+				buffer->data[count++] = pixel->b;
 			}
 		}
 	return buffer;
