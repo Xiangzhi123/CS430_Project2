@@ -212,7 +212,6 @@ void readScene(char* filename, Object** objects) {
 						strcmp(key, "normal") == 0) {
 						double* value = nextVector(json);
 						if (strcmp(key, "color") == 0) {
-							printf("%d", (int)value[0]);
 							objects[i]->color[0] = value[0];
 							objects[i]->color[1] = value[1];
 							objects[i]->color[2] = value[2];
